@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>记忆翻牌游戏</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='5' width='18' height='14' rx='3' fill='%232b3d6b'/%3E%3Ctext x='12' y='17' font-size='11' text-anchor='middle' fill='%23f4c95d'%3E%3F%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#16203a;
+  --panel:#223055;
+  --panel-2:#2b3d6b;
+  --accent:#f4c95d;
+  --text:#f4f6fb;
+  --muted:#8fa0c4;
+  --ok:#5bb98c;
+  --bad:#e06a6a;
+  --card-back-1:#3a4e8c;
+  --card-back-2:#5a6fb8;
+  --face:#f7f8fc;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  background:
+    radial-gradient(1100px 500px at 50% -10%, #2a3a68 0%, transparent 60%),
+    var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+}
+.game{width:100%;max-width:46rem;padding:20px 0 32px;text-align:center;}
+h1{
+  font-size:1.6rem;
+  letter-spacing:.12em;
+  font-weight:700;
+  color:var(--accent);
+}
+.sub{color:var(--muted);font-size:.88rem;margin-top:4px;}
+.stats{
+  display:flex;gap:8px;justify-content:center;
+  margin:18px auto 0;max-width:26rem;
+}
+.stat{
+  flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.07);
+  border-radius:var(--radius);padding:8px 6px;min-width:0;
+}
+.stat b{display:block;font-size:.72rem;color:var(--muted);font-weight:500;margin-bottom:2px;}
+.stat span{font-size:1.12rem;font-weight:700;font-variant-numeric:tabular-nums;display:block;}
+.stat .best-val{font-size:.98rem;color:var(--accent);}
+.controls{
+  display:flex;gap:8px;justify-content:center;flex-wrap:wrap;
+  margin:16px auto 0;max-width:30rem;
+}
+.diff-btn,.restart-btn{
+  font-family:inherit;font-size:.95rem;font-weight:600;color:var(--text);
+  background:var(--panel-2);border:1px solid rgba(255,255,255,.10);
+  border-radius:999px;padding:10px 18px;cursor:pointer;
+  transition:background .15s,transform .05s;
+  touch-action:manipulation;min-height:44px;
+}
+.diff-btn.active{background:var(--accent);color:#1d2740;border-color:var(--accent);}
+.restart-btn{background:var(--panel-2);}
+.restart-btn:hover,.diff-btn:hover{filter:brightness(1.12);}
+.restart-btn:active,.diff-btn:active{transform:scale(.97);}
+.board{
+  display:grid;gap:10px;
+  width:min(100%,46rem);
+  margin:20px auto 0;
+  perspective:1000px;
+}
+.card{
+  position:relative;background:none;border:none;padding:0;cursor:pointer;
+  aspect-ratio:3/4;
+  touch-action:manipulation;min-height:44px;
+}
+.card-inner{
+  position:absolute;inset:0;
+  transform-style:preserve-3d;
+  transition:transform .38s ease;
+}
+.card.flipped .card-inner{transform:rotateY(180deg);}
+.face{
+  position:absolute;inset:0;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border-radius:10px;display:flex;align-items:center;justify-content:center;
+}
+.face.back{
+  background:linear-gradient(135deg,var(--card-back-1),var(--card-back-2));
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 3px 8px rgba(0,0,0,.28);
+}
+.back-mark{font-size:1.5rem;font-weight:800;color:rgba(255,255,255,.55);}
+.face.front{
+  background:var(--face);
+  transform:rotateY(180deg);
+  border:1px solid #dfe3ee;
+}
+.icon{width:58%;height:58%;}
+.card.matched .card-inner{animation:pop .35s ease;}
+.card.matched .face.front{background:#eef7f1;border-color:#bcdccb;}
+.card.mismatch .face.front{animation:shake .3s ease;}
+.card.mismatch .face.front{background:#fdeeee;border-color:#eeb9b9;}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:rotateY(180deg) translateX(0)}25%{transform:rotateY(180deg) translateX(-4px)}75%{transform:rotateY(180deg) translateX(4px)}}
+.notice{
+  margin-top:14px;color:var(--muted);font-size:.88rem;line-height:1.7;
+}
+.modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(10,15,30,.72);padding:20px;z-index:20;
+}
+.modal.show{display:flex;}
+.modal-card{
+  background:var(--panel);border:1px solid rgba(255,255,255,.10);
+  border-radius:16px;padding:26px 24px;max-width:22rem;width:100%;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.45);
+}
+.modal-card h2{color:var(--accent);font-size:1.35rem;letter-spacing:.08em;}
+.modal-lines{margin:16px 0;color:var(--text);font-size:1rem;line-height:2;}
+.modal-lines em{color:var(--accent);font-style:normal;font-weight:700;}
+.record{display:none;margin-top:8px;color:var(--ok);font-weight:700;font-size:.92rem;}
+.record.show{display:block;}
+.again-btn{
+  font-family:inherit;font-size:1rem;font-weight:700;color:#1d2740;
+  background:var(--accent);border:none;border-radius:999px;padding:12px 28px;
+  cursor:pointer;min-height:46px;touch-action:manipulation;
+}
+.again-btn:active{transform:scale(.97);}
+@media (max-width:520px){
+  .board{gap:6px;width:min(100%,30rem);}
+  h1{font-size:1.35rem;}
+  .stat span{font-size:1rem;}
+  .stat .best-val{font-size:.88rem;}
+  .controls{gap:6px;}
+  .diff-btn,.restart-btn{padding:9px 14px;font-size:.9rem;}
+  .face{border-radius:7px;}
+}
+@media (prefers-reduced-motion:reduce){
+  .card-inner{transition:none;}
+  .card.matched .card-inner,.card.mismatch .face.front{animation:none;}
+}
+</style>
+</head>
+<body>
+<main class="game">
+  <h1>记忆翻牌</h1>
+  <p class="sub">翻开两张卡片，找到相同的图案</p>
+
+  <div class="stats">
+    <div class="stat"><b>步数</b><span id="statMoves">0</span></div>
+    <div class="stat"><b>用时</b><span id="statTime">00:00</span></div>
+    <div class="stat"><b>最佳成绩</b><span class="best-val" id="statBest">--</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="diff-btn active" data-diff="easy" type="button">简单 4×4</button>
+    <button class="diff-btn" data-diff="medium" type="button">中等 6×4</button>
+    <button class="diff-btn" data-diff="hard" type="button">困难 8×4</button>
+    <button class="restart-btn" id="restartBtn" type="button">重新开始</button>
+  </div>
+
+  <div class="board" id="board" role="group" aria-label="游戏卡片区域"></div>
+
+  <p class="notice">难度选择与最佳成绩仅保存在当前浏览器，手机与电脑之间不会自动同步。<br>第 1 次翻开卡片时开始计时。</p>
+</main>
+
+<div class="modal" id="winModal" role="dialog" aria-modal="true" aria-label="完成提示">
+  <div class="modal-card">
+    <h2>全部配对成功</h2>
+    <div class="modal-lines">
+      用时 <em id="winTime">--</em><br>
+      步数 <em id="winMoves">--</em>
+    </div>
+    <p class="record" id="winRecord">新纪录！</p>
+    <button class="again-btn" id="againBtn" type="button">再来一局</button>
+  </div>
+</div>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="icon-star" viewBox="0 0 24 24"><path fill="hsl(0 72% 55%)" d="M12 2.6l2.86 6.46 7.04.63-5.32 4.63 1.58 6.93L12 17.84 5.84 21.25l1.58-6.93L2.1 9.69l7.04-.63z"/></symbol>
+  <symbol id="icon-moon" viewBox="0 0 24 24"><path fill="hsl(20 72% 55%)" d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
+  <symbol id="icon-sun" viewBox="0 0 24 24"><circle fill="hsl(40 72% 55%)" cx="12" cy="12" r="4.2"/><path fill="none" stroke="hsl(40 72% 55%)" stroke-width="1.8" stroke-linecap="round" d="M12 2.2v2.6M12 19.2v2.6M2.2 12h2.6M19.2 12h2.6M4.9 4.9l1.9 1.9M17.2 17.2l1.9 1.9M19.1 4.9l-1.9 1.9M6.8 17.2l-1.9 1.9"/></symbol>
+  <symbol id="icon-heart" viewBox="0 0 24 24"><path fill="hsl(340 72% 55%)" d="M12 21.2S4 15.6 4 10.3a4.7 4.7 0 0 1 8.3-2.9A4.7 4.7 0 0 1 20 10.3c0 5.3-8 10.9-8 10.9z"/></symbol>
+  <symbol id="icon-diamond" viewBox="0 0 24 24"><path fill="hsl(280 72% 55%)" d="M12 2.2 21.8 12 12 21.8 2.2 12z"/></symbol>
+  <symbol id="icon-triangle" viewBox="0 0 24 24"><path fill="hsl(260 72% 55%)" d="M12 3.2l9.6 17H2.4z"/></symbol>
+  <symbol id="icon-circle" viewBox="0 0 24 24"><circle fill="hsl(220 72% 55%)" cx="12" cy="12" r="9"/></symbol>
+  <symbol id="icon-square" viewBox="0 0 24 24"><rect fill="hsl(200 72% 55%)" x="4" y="4" width="16" height="16" rx="2.4"/></symbol>
+  <symbol id="icon-hexagon" viewBox="0 0 24 24"><path fill="hsl(180 72% 55%)" d="M12 2.4 20.6 7.2v9.6L12 21.6 3.4 16.8V7.2z"/></symbol>
+  <symbol id="icon-bolt" viewBox="0 0 24 24"><path fill="hsl(140 72% 55%)" d="M13 2.2 4.6 13.6h6.4L9.2 21.8 19.4 10.4H13z"/></symbol>
+  <symbol id="icon-cloud" viewBox="0 0 24 24"><path fill="hsl(120 72% 55%)" d="M6.8 19.4a4.2 4.2 0 0 1-.6-8.35 6.1 6.1 0 0 1 11.4 1.4 3.6 3.6 0 0 1-.7 6.95z"/></symbol>
+  <symbol id="icon-drop" viewBox="0 0 24 24"><path fill="hsl(160 72% 55%)" d="M12 2.4s7 8.6 7 13.1a7 7 0 0 1-14 0C5 11 12 2.4 12 2.4z"/></symbol>
+  <symbol id="icon-flower" viewBox="0 0 24 24"><circle fill="hsl(60 72% 55%)" cx="12" cy="7.2" r="3"/><circle fill="hsl(60 72% 55%)" cx="18.4" cy="12" r="3"/><circle fill="hsl(60 72% 55%)" cx="15.6" cy="19.2" r="3"/><circle fill="hsl(60 72% 55%)" cx="8.4" cy="19.2" r="3"/><circle fill="hsl(60 72% 55%)" cx="5.6" cy="12" r="3"/><circle fill="#f7f8fc" stroke="hsl(60 72% 55%)" stroke-width="2.4" cx="12" cy="12" r="3.2"/></symbol>
+  <symbol id="icon-leaf" viewBox="0 0 24 24"><path fill="hsl(100 72% 55%)" d="M5.2 18.8C5.2 9.4 12 4.2 20 4.2c0 8.4-5 14.6-14.8 14.6z"/><path fill="none" stroke="#f7f8fc" stroke-width="1.6" stroke-linecap="round" d="M6 18C9.5 14 13 10.5 18 6.5"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect fill="hsl(240 72% 55%)" x="4.6" y="10.8" width="14.8" height="10" rx="2.4"/><path fill="none" stroke="hsl(240 72% 55%)" stroke-width="2" d="M8 10.8V8a4 4 0 0 1 8 0v2.8"/></symbol>
+  <symbol id="icon-key" viewBox="0 0 24 24"><circle fill="hsl(300 72% 55%)" cx="8.2" cy="14" r="4.2"/><path fill="none" stroke="hsl(300 72% 55%)" stroke-width="2" stroke-linecap="round" d="M11.6 10.6 20 2.2M16.4 6.4l2.6 2.6M13.4 9.4l2 2"/></symbol>
+</svg>
+
+<script>
+(function(){
+  'use strict';
+
+  var ICONS = ['star','moon','sun','heart','diamond','triangle','circle','square','hexagon','bolt','cloud','drop','flower','leaf','lock','key'];
+
+  var DIFFS = {
+    easy:   { cols:4, rows:4, pairs:8,  label:'简单' },
+    medium: { cols:6, rows:4, pairs:12, label:'中等' },
+    hard:   { cols:8, rows:4, pairs:16, label:'困难' }
+  };
+
+  var BEST_KEY = 'memory-game-best-v1';
+
+  var boardEl      = document.getElementById('board');
+  var statMovesEl  = document.getElementById('statMoves');
+  var statTimeEl   = document.getElementById('statTime');
+  var statBestEl   = document.getElementById('statBest');
+  var restartBtn   = document.getElementById('restartBtn');
+  var diffBtns     = Array.prototype.slice.call(document.querySelectorAll('.diff-btn'));
+  var winModal     = document.getElementById('winModal');
+  var winTimeEl    = document.getElementById('winTime');
+  var winMovesEl   = document.getElementById('winMoves');
+  var winRecordEl  = document.getElementById('winRecord');
+  var againBtn     = document.getElementById('againBtn');
+
+  var state = {
+    diff: 'easy',
+    cards: [],
+    locked: false,
+    open: [],
+    moves: 0,
+    matched: 0,
+    totalPairs: DIFFS.easy.pairs,
+    startTime: null,
+    timerId: null,
+    pending: []
+  };
+
+  function shuffle(arr){
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildDeck(){
+    var icons = ICONS.slice(0, DIFFS[state.diff].pairs);
+    var deck = [];
+    icons.forEach(function(icon, i){
+      deck.push({ icon: icon, matched: false, flipped: false });
+      deck.push({ icon: icon, matched: false, flipped: false });
+    });
+    return shuffle(deck);
+  }
+
+  function fmt(sec){
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+  }
+
+  function startTimer(){
+    if (state.startTime) return;
+    state.startTime = Date.now();
+    state.timerId = setInterval(function(){
+      statTimeEl.textContent = fmt(Math.floor((Date.now() - state.startTime) / 1000));
+    }, 250);
+  }
+
+  function stopTimer(){
+    if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+  }
+
+  function readBest(){
+    try {
+      var all = JSON.parse(localStorage.getItem(BEST_KEY) || '{}');
+      return all[state.diff] || null;
+    } catch (e) { return null; }
+  }
+
+  function updateBestDisplay(){
+    var best = readBest();
+    statBestEl.textContent = best ? best.moves + ' 步 · ' + fmt(best.seconds) : '--';
+  }
+
+  function tryUpdateBest(moves, seconds){
+    var all;
+    try { all = JSON.parse(localStorage.getItem(BEST_KEY) || '{}'); }
+    catch (e) { all = {}; }
+    var cur = all[state.diff];
+    var better = !cur || moves < cur.moves || (moves === cur.moves && seconds < cur.seconds);
+    if (better) {
+      all[state.diff] = { moves: moves, seconds: seconds };
+      try { localStorage.setItem(BEST_KEY, JSON.stringify(all)); } catch (e) {}
+    }
+    return better;
+  }
+
+  function render(){
+    boardEl.innerHTML = '';
+    boardEl.style.gridTemplateColumns = 'repeat(' + DIFFS[state.diff].cols + ', 1fr)';
+    state.cards.forEach(function(card, idx){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'card';
+      btn.setAttribute('aria-label', '第 ' + (idx + 1) + ' 张卡片，未翻开');
+      btn.innerHTML =
+        '<span class="card-inner">' +
+          '<span class="face back"><span class="back-mark">?</span></span>' +
+          '<span class="face front">' +
+            '<svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><use href="#icon-' + card.icon + '"></use></svg>' +
+          '</span>' +
+        '</span>';
+      btn.addEventListener('click', function(){ flip(idx, btn); });
+      boardEl.appendChild(btn);
+    });
+  }
+
+  function flip(idx, btn){
+    if (state.locked) return;
+    var card = state.cards[idx];
+    if (card.flipped || card.matched) return;
+    if (!state.startTime) startTimer();
+    card.flipped = true;
+    btn.classList.add('flipped');
+    btn.setAttribute('aria-label', '第 ' + (idx + 1) + ' 张卡片，已翻开');
+    state.open.push(idx);
+    if (state.open.length === 2) {
+      state.moves++;
+      statMovesEl.textContent = state.moves;
+      checkMatch();
+    }
+  }
+
+  function checkMatch(){
+    var a = state.open[0], b = state.open[1];
+    var ca = state.cards[a], cb = state.cards[b];
+    var btnA = boardEl.children[a], btnB = boardEl.children[b];
+    if (ca.icon === cb.icon) {
+      ca.matched = cb.matched = true;
+      state.matched++;
+      btnA.classList.add('matched');
+      btnB.classList.add('matched');
+      btnA.setAttribute('aria-label', '已配对卡片');
+      btnB.setAttribute('aria-label', '已配对卡片');
+      state.open = [];
+      if (state.matched === state.totalPairs) win();
+    } else {
+      state.locked = true;
+      btnA.classList.add('mismatch');
+      btnB.classList.add('mismatch');
+      var t = setTimeout(function(){
+        ca.flipped = cb.flipped = false;
+        btnA.classList.remove('flipped', 'mismatch');
+        btnB.classList.remove('flipped', 'mismatch');
+        btnA.setAttribute('aria-label', '第 ' + (a + 1) + ' 张卡片，未翻开');
+        btnB.setAttribute('aria-label', '第 ' + (b + 1) + ' 张卡片，未翻开');
+        state.open = [];
+        state.locked = false;
+      }, 700);
+      state.pending.push(t);
+    }
+  }
+
+  function win(){
+    stopTimer();
+    var seconds = Math.max(1, Math.round((Date.now() - state.startTime) / 1000));
+    var isNew = tryUpdateBest(state.moves, seconds);
+    winTimeEl.textContent = fmt(seconds);
+    winMovesEl.textContent = state.moves;
+    winRecordEl.classList.toggle('show', isNew);
+    winModal.classList.add('show');
+    updateBestDisplay();
+  }
+
+  function restart(){
+    state.pending.forEach(clearTimeout);
+    state.pending = [];
+    stopTimer();
+    state.locked = false;
+    state.open = [];
+    state.moves = 0;
+    state.matched = 0;
+    state.startTime = null;
+    state.totalPairs = DIFFS[state.diff].pairs;
+    state.cards = buildDeck();
+    statMovesEl.textContent = '0';
+    statTimeEl.textContent = '00:00';
+    winModal.classList.remove('show');
+    render();
+    updateBestDisplay();
+  }
+
+  function setDiff(diff){
+    state.diff = diff;
+    diffBtns.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-diff') === diff); });
+    restart();
+  }
+
+  restartBtn.addEventListener('click', restart);
+  againBtn.addEventListener('click', restart);
+  diffBtns.forEach(function(b){
+    b.addEventListener('click', function(){ setDiff(b.getAttribute('data-diff')); });
+  });
+
+  restart();
+})();
+</script>
+</body>
+</html>
